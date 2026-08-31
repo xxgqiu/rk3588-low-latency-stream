@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密安全报告
+    url: https://github.com/xxgqiu/rk3588-low-latency-stream/security/advisories/new
+    about: 涉及漏洞或敏感信息时，请不要创建公开 Issue。

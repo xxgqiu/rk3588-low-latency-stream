@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-build-and-test:
+    name: 主机构建与离线测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 获取源码
+        uses: actions/checkout@v4
+
+      - name: 配置
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=ON
+
+      - name: 编译
+        run: cmake --build build --parallel 2
+
+      - name: 运行离线测试
+        run: ctest --test-dir build --output-on-failure
+
+      - name: 检查脚本语法
+        run: bash -n scripts/*.sh
+
+      - name: 检查补丁空白错误
+        run: git diff --check

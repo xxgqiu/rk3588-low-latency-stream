@@ -1,0 +1,41 @@
+name: 缺陷报告
+description: 报告可以稳定复现的功能或兼容性问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传包含隐私的摄像头画面、设备凭据或未脱敏日志。
+  - type: input
+    id: commit
+    attributes:
+      label: 提交版本
+      description: 请提供 git commit SHA。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 硬件与环境
+      description: 板卡、系统、内核、摄像头、格式、分辨率和关键依赖版本。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 提供最小、完整、可重复的步骤。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为与脱敏日志
+    validations:
+      required: true
