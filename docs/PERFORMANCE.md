@@ -173,7 +173,35 @@ RTSP write 完成时间 - V4L2 DQBUF 时间
 
 这些项目需要单独固定方法并重新采集数据，不能从当前短时实验外推。
 
-## 11. 复现入口
+## 11. 主/子码流与故障隔离
+
+正常双码流条件：同一 OV8858 输入，主码流 1632×1224 / 4 Mbps，子码流
+640×480 / 800 kbps，均为 24 FPS、GOP 48、RTSP/TCP。
+
+| 指标 | 主码流 | 子码流 |
+|---|---:|---:|
+| encoded / published | 478 / 478 | 478 / 478 |
+| 发布速率 | 23.748 FPS | 23.748 FPS |
+| RGA 平均耗时 | 1.229 ms | 1.834 ms |
+| MPP 平均耗时 | 4.296 ms | 1.365 ms |
+| packet drop-oldest | 0 | 0 |
+| ffprobe / FFmpeg 解码 | PASS | PASS |
+
+整进程 CPU 为 6.735%，峰值 RSS 为 26,608 KiB；摄像头 lease 478/478
+全部归还，driver gap 和 capture timeout 均为 0。
+
+在子 Network Thread 单独注入 80 ms 延迟的 30 秒实验中，主分支仍发布
+717/717 帧、23.762 FPS、0 队列丢包；子分支的有界队列丢弃 15 个旧包，
+检测到 gap 后跳过 567 个非 IDR 包，避免把破损参考链继续发布。该实验验证的是
+分支隔离和有界退化，不把故障注入数据作为正常播放性能。
+
+## 12. 端到端延迟状态
+
+Qt 客户端和拍照法测量界面已经实现，但尚未形成 30 组以上正式样本，因此本报告
+不填写未经统计的 glass-to-glass 中位数或 P95。现有 6–10 ms 指标仍仅表示应用
+内部 DQBUF 到 RTSP write 返回耗时。测量方法见 [Qt 客户端与拍照法](QT_E2E_LATENCY.md)。
+
+## 13. 复现入口
 
 ```bash
 # 板端构建与单元测试
@@ -184,6 +212,10 @@ FRAMES=240 ./scripts/run_encode_benchmark.sh
 
 # 推荐 RTSP 路径
 ./scripts/run_dmabuf_rtsp_stream.sh
+
+# 主/子码流基线与慢子分支故障注入
+./scripts/run_dual_stream.sh
+SUB_NETWORK_DELAY_MS=80 DURATION=30 ./scripts/run_dual_stream.sh
 
 # CPU-copy 回退路径
 ./scripts/run_rtsp_stream.sh

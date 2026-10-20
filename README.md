@@ -20,6 +20,8 @@
 - H.264 包序号缺口检测，丢包后等待下一张 IDR 再恢复
 - DMA-BUF lease 全生命周期对账，防止相机 buffer 泄漏
 - FFmpeg RTSP publisher + MediaMTX 服务端
+- 同一摄像头生成 1632×1224 主码流与 640×480 子码流，分支独立排队和发布
+- Qt6 + FFmpeg 桌面客户端，用于实时预览、客户端指标和拍照法端到端延迟测量
 - FPS、CPU、RSS、队列水位、阶段耗时和内部管线耗时统计
 - 主机离线 CI 与 RK3588 板端实际构建/解码验证
 
@@ -79,6 +81,12 @@ V4L2 MMAP → Frame vector → CPU row copy → MPP → RTSP
 FPS 基本不变，因为当前摄像头真实输出约 23.9 FPS，两条编码路径都能及时处理。优化收益主要体现在 CPU、内存和内部处理耗时。
 
 详细方法、完整数据与限制见 [性能与验证报告](docs/PERFORMANCE.md)。
+
+双码流 20 秒板端基线中，主、子分支均发布 478/478 帧（约 23.75 FPS），
+两条 packet queue 均无丢包，摄像头 DMA lease 478/478 全部归还。对子分支
+单独注入 80 ms 网络延迟时，子分支出现受控丢包并等待 IDR 恢复，主分支仍保持
+约 23.76 FPS 且 `packet_drop_oldest=0`。详见
+[主/子码流设计与验证](docs/DUAL_STREAM.md)。
 
 ## 已验证硬件
 
@@ -156,6 +164,19 @@ ffplay -rtsp_transport tcp -fflags nobuffer rtsp://10.42.0.81:8554/live
 ./scripts/run_rtsp_stream.sh
 ```
 
+### 主/子码流
+
+```bash
+./scripts/run_dual_stream.sh
+```
+
+### 电脑端 Qt 客户端
+
+```bash
+./scripts/build_qt_client.sh
+./scripts/run_qt_client.sh rtsp://<BOARD_IP>:8554/live/main
+```
+
 更多依赖、摄像头检查、文件编码和故障排查见 [构建与运行指南](docs/BUILD_AND_RUN.md)。
 
 ## 目录结构
@@ -178,6 +199,8 @@ docs/       架构、性能、学习与源码参考文档
 - [DMA-BUF 可行性审计](docs/DMABUF_FEASIBILITY.md)
 - [持续编码 A/B 基准](docs/ENCODING_BENCHMARK.md)
 - [RTSP 完整链路验证](docs/RTSP_VALIDATION.md)
+- [主/子码流设计与验证](docs/DUAL_STREAM.md)
+- [Qt 客户端与拍照法端到端延迟](docs/QT_E2E_LATENCY.md)
 - [源码学习导读](docs/LEARNING_GUIDE.md)
 - [类与函数源码参考](docs/CODE_REFERENCE.md)
 - [程序、线程、脚本与测试走读](docs/PROGRAM_WALKTHROUGH.md)
