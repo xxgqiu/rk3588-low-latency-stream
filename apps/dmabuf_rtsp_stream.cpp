@@ -236,6 +236,7 @@ int main(int argc, char** argv) {
 
         rkstream::RgaNv12Aligner rga;
         if (!rga.open(capture_info, capture.buffers(), encoder.input_dmabuf_fd(),
+                      capture_info.width, capture_info.height,
                       encoder.info(), &error)) {
             std::cerr << "RGA initialization failed: " << error << '\n';
             return 3;
