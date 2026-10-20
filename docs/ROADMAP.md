@@ -46,3 +46,22 @@
 - [ ] 使用光学时钟测量摄像头到显示器的精确端到端延迟
 
 当前审计、持续编码和 RTSP 实测支持 `V4L2 DMA-BUF → RGA → aligned MPP DMA-BUF`。该方案仍有一次硬件拷贝，不称为纯零拷贝。详见 [DMA-BUF 可行性审计](DMABUF_FEASIBILITY.md)、[持续编码性能对照](ENCODING_BENCHMARK.md)与 [RTSP 完整链路验证](RTSP_VALIDATION.md)。
+
+## M5：电脑端客户端与端到端测量
+
+- [x] Qt6 + FFmpeg RTSP 客户端
+- [x] 后台解码线程与容量 1 latest-frame mailbox
+- [x] FPS、码率、解码耗时、包/帧错误和覆盖帧统计
+- [x] TCP/UDP transport 选择
+- [x] 拍照法时钟界面与同屏截图
+- [ ] 采集至少 30 组样本并报告中位数、P95 和测量不确定度
+
+## M6：主/子码流与故障隔离
+
+- [x] 同一 DMA-BUF 输入生成 1632×1224 主码流和 640×480 子码流
+- [x] RGA 同尺寸布局整理与异尺寸缩放
+- [x] 两套 MPP 编码器、packet queue 和 Network Thread
+- [x] 主/子流 ffprobe 与 FFmpeg 实际解码
+- [x] 慢子分支 80 ms 故障注入
+- [x] 主分支吞吐、队列隔离和 camera lease 守恒验证
+- [ ] 30 分钟以上双码流稳定性验证

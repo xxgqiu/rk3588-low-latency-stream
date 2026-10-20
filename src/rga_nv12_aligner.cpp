@@ -12,11 +12,15 @@ class RgaNv12Aligner::Impl {
 public:
     bool open(const CaptureInfo& capture_info,
               const std::vector<DmabufBufferInfo>& source_buffers,
-              int destination_fd, const MppEncoderInfo& destination_info,
+              int destination_fd,
+              uint32_t destination_width,
+              uint32_t destination_height,
+              const MppEncoderInfo& destination_info,
               std::string* error) {
         close();
         if (source_buffers.empty() || destination_fd < 0 ||
             capture_info.width == 0 || capture_info.height == 0 ||
+            destination_width == 0 || destination_height == 0 ||
             destination_info.input_buffer_bytes == 0) {
             if (error != nullptr) {
                 *error = "invalid RGA aligner configuration";
@@ -37,10 +41,12 @@ public:
         // wrapbuffer_handle 描述“如何解释这块内存”。可见尺寸仍是 width/height，
         // 但目标 stride 使用 MPP 的对齐值，RGA 会把 UV 写到正确目标偏移。
         destination_ = wrapbuffer_handle(
-            destination_handle_, static_cast<int>(capture_info.width),
-            static_cast<int>(capture_info.height), RK_FORMAT_YCbCr_420_SP,
+            destination_handle_, static_cast<int>(destination_width),
+            static_cast<int>(destination_height), RK_FORMAT_YCbCr_420_SP,
             static_cast<int>(destination_info.horizontal_stride),
             static_cast<int>(destination_info.vertical_stride));
+        resize_required_ = capture_info.width != destination_width ||
+                           capture_info.height != destination_height;
 
         source_handles_.reserve(source_buffers.size());
         source_images_.resize(source_buffers.size());
@@ -105,11 +111,16 @@ public:
             }
             return false;
         }
-        // sync=1：返回时硬件 copy 已结束，源 lease 此刻即可安全 QBUF。
-        const IM_STATUS status = imcopy(source_images_[source_index], destination_, 1);
+        // sync=1：返回时硬件处理已结束，源 lease 此刻即可安全 QBUF。
+        const IM_STATUS status = resize_required_
+            ? imresize(source_images_[source_index], destination_,
+                       0.0, 0.0, INTER_LINEAR, 1)
+            : imcopy(source_images_[source_index], destination_, 1);
         if (status != IM_STATUS_NOERROR && status != IM_STATUS_SUCCESS) {
             if (error != nullptr) {
-                *error = std::string("RGA copy failed: ") + imStrError_t(status);
+                *error = std::string(resize_required_ ? "RGA resize failed: "
+                                                      : "RGA copy failed: ") +
+                         imStrError_t(status);
             }
             return false;
         }
@@ -131,6 +142,7 @@ public:
             destination_handle_ = 0;
         }
         destination_ = {};
+        resize_required_ = false;
     }
 
     ~Impl() {
@@ -143,6 +155,7 @@ private:
     std::vector<bool> source_registered_;
     rga_buffer_handle_t destination_handle_ = 0;
     rga_buffer_t destination_{};
+    bool resize_required_ = false;
 };
 
 RgaNv12Aligner::RgaNv12Aligner() : impl_(std::make_unique<Impl>()) {}
@@ -151,9 +164,14 @@ RgaNv12Aligner::~RgaNv12Aligner() = default;
 
 bool RgaNv12Aligner::open(const CaptureInfo& capture_info,
                           const std::vector<DmabufBufferInfo>& source_buffers,
-                          int destination_fd, const MppEncoderInfo& destination_info,
+                          int destination_fd,
+                          uint32_t destination_width,
+                          uint32_t destination_height,
+                          const MppEncoderInfo& destination_info,
                           std::string* error) {
-    return impl_->open(capture_info, source_buffers, destination_fd, destination_info, error);
+    return impl_->open(capture_info, source_buffers, destination_fd,
+                       destination_width, destination_height,
+                       destination_info, error);
 }
 
 bool RgaNv12Aligner::copy(uint32_t source_index, std::string* error) {

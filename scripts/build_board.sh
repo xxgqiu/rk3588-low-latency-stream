@@ -42,3 +42,6 @@ fi
 if [[ -x "$BUILD_DIR/dmabuf_rtsp_stream" ]]; then
     echo "[build] DMA-BUF/RGA RTSP=$BUILD_DIR/dmabuf_rtsp_stream"
 fi
+if [[ -x "$BUILD_DIR/dual_stream_rtsp" ]]; then
+    echo "[build] main/sub dual RTSP=$BUILD_DIR/dual_stream_rtsp"
+fi

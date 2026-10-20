@@ -10,6 +10,14 @@ include(CTest)
 find_package(Threads REQUIRED)
 find_package(PkgConfig QUIET)
 
+# RTSP publisher needs the core FFmpeg libraries. The optional desktop Qt
+# client additionally uses libswscale to convert decoded YUV frames to QImage.
+if(PkgConfig_FOUND)
+    pkg_check_modules(FFMPEG QUIET IMPORTED_TARGET libavformat libavcodec libavutil)
+    pkg_check_modules(FFMPEG_CLIENT QUIET IMPORTED_TARGET
+        libavformat libavcodec libavutil libswscale)
+endif()
+
 # 采集库只依赖 Linux/V4L2 和线程库，因此主机也能编译接口与离线测试。
 # MPP、RGA、FFmpeg 目标放在后面的条件块中：主机缺少板端 SDK 时不会伪造硬件构建。
 add_library(rkstream_capture
@@ -42,9 +50,6 @@ if(MPP_INCLUDE_DIR AND MPP_LIBRARY)
     target_compile_options(mpp_file_encode PRIVATE -Wall -Wextra -Wpedantic)
 
     # RTSP 只在 libavformat/libavcodec/libavutil 开发包齐全时构建。
-    if(PkgConfig_FOUND)
-        pkg_check_modules(FFMPEG QUIET IMPORTED_TARGET libavformat libavcodec libavutil)
-    endif()
     if(FFMPEG_FOUND)
         add_library(rkstream_rtsp src/rtsp_publisher.cpp)
         target_include_directories(rkstream_rtsp PUBLIC include)
@@ -62,6 +67,28 @@ if(MPP_INCLUDE_DIR AND MPP_LIBRARY)
     message(STATUS "Rockchip MPP found: mpp_file_encode enabled")
 else()
     message(STATUS "Rockchip MPP not found: hardware encoder target skipped")
+endif()
+
+# The desktop client is independent of Rockchip MPP/RGA, so it can be built on
+# an x86_64 development machine while board-only targets remain disabled.
+find_package(Qt6 QUIET COMPONENTS Core Gui Widgets)
+if(Qt6_FOUND AND FFMPEG_CLIENT_FOUND)
+    add_executable(qt_rtsp_client
+        apps/qt_client/main.cpp
+        apps/qt_client/main_window.cpp
+        apps/qt_client/main_window.h
+        apps/qt_client/rtsp_decode_thread.cpp
+        apps/qt_client/rtsp_decode_thread.h
+        apps/qt_client/latest_frame_mailbox.h
+    )
+    target_include_directories(qt_rtsp_client PRIVATE apps/qt_client)
+    target_link_libraries(qt_rtsp_client PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Widgets PkgConfig::FFMPEG_CLIENT)
+    target_compile_options(qt_rtsp_client PRIVATE -Wall -Wextra -Wpedantic)
+    set_target_properties(qt_rtsp_client PROPERTIES AUTOMOC ON)
+    message(STATUS "Qt6/FFmpeg found: qt_rtsp_client enabled")
+else()
+    message(STATUS "Qt6 or desktop FFmpeg development libraries not found: qt_rtsp_client skipped")
 endif()
 
 # DMA-BUF 优化目标必须同时具有 MPP 与 RGA；缺任意一项都明确跳过。
@@ -89,6 +116,11 @@ if(MPP_INCLUDE_DIR AND MPP_LIBRARY AND RGA_INCLUDE_DIR AND RGA_LIBRARY)
         target_link_libraries(dmabuf_rtsp_stream PRIVATE
             rkstream_capture rkstream_mpp rkstream_rga rkstream_rtsp Threads::Threads)
         target_compile_options(dmabuf_rtsp_stream PRIVATE -Wall -Wextra -Wpedantic)
+
+        add_executable(dual_stream_rtsp apps/dual_stream_rtsp.cpp)
+        target_link_libraries(dual_stream_rtsp PRIVATE
+            rkstream_capture rkstream_mpp rkstream_rga rkstream_rtsp Threads::Threads)
+        target_compile_options(dual_stream_rtsp PRIVATE -Wall -Wextra -Wpedantic)
         message(STATUS "DMA-BUF/RGA RTSP target enabled")
     endif()
     message(STATUS "Rockchip MPP/RGA found: dmabuf_probe enabled")

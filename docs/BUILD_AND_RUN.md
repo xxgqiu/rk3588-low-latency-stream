@@ -133,7 +133,44 @@ ffplay -rtsp_transport tcp -fflags nobuffer \
 
 VLC 中选择“打开网络串流”，输入同一地址。Chrome、Edge 等普通浏览器通常不能直接播放 RTSP，把地址输入搜索栏不会出现视频。
 
-## 10. 常见问题
+## 10. 主/子码流
+
+同一 OV8858 输入同时发布主码流和子码流：
+
+```bash
+DURATION=20 ./scripts/run_dual_stream.sh
+```
+
+播放地址：
+
+```text
+rtsp://<BOARD_IP>:8554/live/main
+rtsp://<BOARD_IP>:8554/live/sub
+```
+
+验证子分支变慢不会拖住主分支：
+
+```bash
+SUB_NETWORK_DELAY_MS=80 DURATION=30 ./scripts/run_dual_stream.sh
+```
+
+该参数只用于故障注入，不是生产配置。正常模式要求两条流都可解码且无队列
+丢包；故障模式要求子分支出现受控丢包、主分支仍保持至少 22 FPS。
+
+## 11. 电脑端 Qt 客户端
+
+在装有 Qt6 与 FFmpeg 开发包的电脑上：
+
+```bash
+./scripts/build_qt_client.sh
+./scripts/run_qt_client.sh rtsp://<BOARD_IP>:8554/live/main
+```
+
+客户端在后台线程完成 RTSP demux、H.264 解码和 RGB 转换，GUI 线程只显示
+容量为 1 的 latest-frame mailbox，防止窗口卡顿时积累旧画面。拍照法端到端
+延迟的操作步骤见 [Qt 客户端与拍照法](QT_E2E_LATENCY.md)。
+
+## 12. 常见问题
 
 ### CMake 只生成采集 target
 

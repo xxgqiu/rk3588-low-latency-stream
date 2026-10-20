@@ -9,7 +9,8 @@
 
 namespace rkstream {
 
-// 将相机 NV12 DMA-BUF 的可见区域复制到 MPP 对齐后的 NV12 DMA-BUF。
+// 将相机 NV12 DMA-BUF 写入 MPP 对齐后的 NV12 DMA-BUF。同尺寸时做布局整理，
+// 目标尺寸不同时由 RGA 同步缩放。
 //
 // 这条路径消除了 CPU memcpy，但仍有一次由 RGA 硬件执行的内存复制，所以准确说法
 // 是“DMA-BUF + 硬件 copy”，而不是完全不搬运像素的纯 zero-copy。
@@ -28,7 +29,10 @@ public:
     // 导入全部相机 DMA-BUF 和一个 MPP 目标 DMA-BUF。传入 fd 均为借用，不接管 close。
     bool open(const CaptureInfo& capture_info,
               const std::vector<DmabufBufferInfo>& source_buffers,
-              int destination_fd, const MppEncoderInfo& destination_info,
+              int destination_fd,
+              uint32_t destination_width,
+              uint32_t destination_height,
+              const MppEncoderInfo& destination_info,
               std::string* error);
     // source_index 必须是当前由应用持有 lease 的 V4L2 slot。
     bool copy(uint32_t source_index, std::string* error);

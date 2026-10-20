@@ -24,7 +24,7 @@ Camera → V4L2 → RGA → MPP H.264 → RTSP → Client
 | 采集 | `V4L2Capture` | MMAP 采集、格式协商、DQBUF/QBUF、时间戳与 sequence |
 | DMA 采集 | `V4L2DmabufCapture`、`DmabufFrameLease` | EXPBUF、lease 交接、跨线程安全归还 |
 | 队列 | `BoundedLatestQueue<T>` | 固定容量、关闭唤醒、满时 drop-oldest |
-| 布局转换 | `RgaNv12Aligner` | 把相机 NV12 1224 行布局整理为 MPP 1232 行布局 |
+| 布局转换 | `RgaNv12Aligner` | 同尺寸时整理 NV12 stride；目标尺寸不同时由 RGA 缩放 |
 | 编码 | `MppH264Encoder` | MPP 初始化、header、逐帧编码、H.264 packet 输出 |
 | 网络 | `RtspPublisher` | FFmpeg mux、时间基转换、RTSP/TCP 写入 |
 | 协议辅助 | Annex-B 与 IDR helpers | NAL 类型识别、SPS/PPS/IDR 统计、丢包后恢复 |
@@ -51,6 +51,21 @@ frame_queue(capacity=1) ─────► RGA layout copy
 ```
 
 采集、编码和网络不放在同一个循环里，因为任何一次编码抖动或网络阻塞都不应直接阻塞摄像头 DQBUF。两个队列都有固定上限，因此运行时间变长不会导致内存持续增长。
+
+### 主/子码流分支
+
+`dual_stream_rtsp` 从同一个相机 lease 生成两条真正不同的 H.264 码流：
+
+```text
+                         ┌─ RGA layout → MPP main → queue → /live/main
+V4L2 DMA-BUF lease ─────┤
+                         └─ RGA resize → MPP sub  → queue → /live/sub
+```
+
+Process Thread 先同步完成两次 RGA 读取，再立即 QBUF 归还源 lease。主、子
+MPP 输入缓冲、压缩包队列和 Network Thread 相互独立，因此慢子分支不会阻塞
+主分支发布。第一版仍在一个 Process Thread 内顺序执行两次 RGA/MPP，以换取
+清晰、可验证的 DMA-BUF 生命周期。
 
 ## 4. 为什么使用 drop-oldest
 
@@ -131,7 +146,7 @@ MPP UV offset    = 1632 × 1232
 
 ## 10. 仍未覆盖的能力
 
-- 精确 glass-to-glass 光学延迟；
+- 30 组以上 glass-to-glass 光学延迟统计（工具与方法已具备）；
 - 客户端连接时主动请求 IDR；
 - USB MJPEG 解码后接入 MPP；
 - 4K、多客户端容量与长时间稳定性；
